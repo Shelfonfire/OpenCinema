@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+__pycache__/
+*.pyc
+.env
+.env.local
+*.db
+*.db-shm
+*.db-wal
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+*.tfvars
+!*.tfvars.example
