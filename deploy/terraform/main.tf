@@ -1,22 +1,20 @@
 terraform {
   required_version = ">= 1.5"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
 }
 
 module "aws" {
-  source = "./modules/aws"
-  count  = var.provider == "aws" ? 1 : 0
-
+  source       = "./modules/aws"
   project_name = var.project_name
   aws_region   = var.aws_region
-  domain       = var.domain
-}
-
-module "gcp" {
-  source = "./modules/gcp"
-  count  = var.provider == "gcp" ? 1 : 0
-
-  project_name = var.project_name
-  gcp_project  = var.gcp_project
-  gcp_region   = var.gcp_region
   domain       = var.domain
 }
