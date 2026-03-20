@@ -8,18 +8,34 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.routing import APIRouter
 
-# Add cinemadb to path for models
-CINEMADB_PATH = Path(__file__).parent.parent.parent / "mcp" / "cinemadb"
-sys.path.insert(0, str(CINEMADB_PATH))
-from models import CinemaOut, FilmOut, ScreeningOut, TagCount
+# Models — in Lambda these are bundled alongside backend/
+try:
+    from backend.models import CinemaOut, FilmOut, ScreeningOut, TagCount
+except ImportError:
+    # Local dev: import from cinemadb
+    CINEMADB_PATH = Path(__file__).parent.parent.parent / "mcp" / "cinemadb"
+    sys.path.insert(0, str(CINEMADB_PATH))
+    from models import CinemaOut, FilmOut, ScreeningOut, TagCount
 
 DB_PATH = os.environ.get(
     "CINEMA_DB_PATH",
-    str(CINEMADB_PATH / "cinema.db"),
+    str(Path(__file__).parent.parent.parent / "mcp" / "cinemadb" / "cinema.db"),
 )
+DATA_BUCKET = os.environ.get("DATA_BUCKET", "")
+
+
+def _ensure_db():
+    """In Lambda: download cinema.db from S3 to /tmp if not present."""
+    if DATA_BUCKET and not os.path.exists(DB_PATH):
+        import boto3
+        s3 = boto3.client("s3")
+        s3.download_file(DATA_BUCKET, "cinema.db", DB_PATH)
+
 
 app = FastAPI(title="OpenCinema API", version="0.1.0")
+api = APIRouter(prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,6 +46,7 @@ app.add_middleware(
 
 
 def get_db() -> sqlite3.Connection:
+    _ensure_db()
     conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     return conn
@@ -37,7 +54,7 @@ def get_db() -> sqlite3.Connection:
 
 # ---------- Cinemas ----------
 
-@app.get("/cinemas", response_model=list[CinemaOut])
+@api.get("/cinemas", response_model=list[CinemaOut])
 def list_cinemas():
     db = get_db()
     rows = db.execute("""
@@ -50,7 +67,7 @@ def list_cinemas():
     return [CinemaOut(**dict(r)) for r in rows]
 
 
-@app.get("/cinemas/{slug}")
+@api.get("/cinemas/{slug}")
 def get_cinema(slug: str):
     db = get_db()
     cinema = db.execute("SELECT * FROM cinemas WHERE slug=?", (slug,)).fetchone()
@@ -71,7 +88,7 @@ def get_cinema(slug: str):
 
 # ---------- Films ----------
 
-@app.get("/films", response_model=list[FilmOut])
+@api.get("/films", response_model=list[FilmOut])
 def list_films(
     q: Optional[str] = None,
     tags: Optional[str] = None,
@@ -116,7 +133,7 @@ def list_films(
     return results
 
 
-@app.get("/films/{slug}")
+@api.get("/films/{slug}")
 def get_film(slug: str):
     db = get_db()
     film = db.execute("SELECT * FROM films WHERE slug=?", (slug,)).fetchone()
@@ -142,7 +159,7 @@ def get_film(slug: str):
 
 # ---------- Screenings ----------
 
-@app.get("/screenings", response_model=list[ScreeningOut])
+@api.get("/screenings", response_model=list[ScreeningOut])
 def list_screenings(
     date_filter: Optional[str] = Query(None, alias="date"),
     from_time: Optional[str] = None,
@@ -209,7 +226,7 @@ def list_screenings(
 
 # ---------- Tags ----------
 
-@app.get("/tags", response_model=list[TagCount])
+@api.get("/tags", response_model=list[TagCount])
 def list_tags():
     db = get_db()
     rows = db.execute("""
@@ -223,6 +240,17 @@ def list_tags():
     return [TagCount(tag=r["tag"], count=r["count"]) for r in rows]
 
 
-@app.get("/health")
+@api.get("/health")
 def health():
     return {"status": "ok"}
+
+
+app.include_router(api)
+
+
+# Lambda handler via Mangum
+try:
+    from mangum import Mangum
+    handler = Mangum(app)
+except ImportError:
+    pass
