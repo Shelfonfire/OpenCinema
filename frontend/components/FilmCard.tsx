@@ -33,9 +33,12 @@ export default function FilmCard({ slug }: FilmCardProps) {
   if (error) return <div className="p-4 text-sm text-red-500">Error: {error}</div>;
   if (!film) return null;
 
-  // Group screenings by cinema name
+  // Filter out past screenings, then group by cinema name
+  const now = new Date();
+  const futureScreenings = (film.screenings || []).filter(s => new Date(s.showtime) >= now);
+
   const byCinema: Record<string, Screening[]> = {};
-  (film.screenings || []).forEach(s => {
+  futureScreenings.forEach(s => {
     if (!byCinema[s.cinema_name]) byCinema[s.cinema_name] = [];
     byCinema[s.cinema_name].push(s);
   });
