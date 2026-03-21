@@ -217,22 +217,25 @@ export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
           </div>
         </div>
         <div ref={listRef} className="flex-1 overflow-y-auto">
-          {sortedCinemas.length === 0 ? (
-            <div className="p-6 text-center">
-              <p className="text-sm text-gray-400">No cinemas found</p>
-            </div>
-          ) : (
-            sortedCinemas.map((cinema) => (
-              <SidebarCinemaItem
-                key={cinema.id}
-                cinema={cinema}
-                isSelected={selectedCinemaSlug === cinema.slug}
-                onClick={() => handleSelectCinema(cinema)}
-                todayCount={screeningCounts[cinema.slug]?.today ?? 0}
-                totalCount={screeningCounts[cinema.slug]?.total ?? 0}
-              />
-            ))
-          )}
+          {(() => {
+            const withScreenings = sortedCinemas.filter(c => (screeningCounts[c.slug]?.total ?? 0) > 0);
+            return withScreenings.length === 0 ? (
+              <div className="p-6 text-center">
+                <p className="text-sm text-gray-400">No cinemas found</p>
+              </div>
+            ) : (
+              withScreenings.map((cinema) => (
+                <SidebarCinemaItem
+                  key={cinema.id}
+                  cinema={cinema}
+                  isSelected={selectedCinemaSlug === cinema.slug}
+                  onClick={() => handleSelectCinema(cinema)}
+                  todayCount={screeningCounts[cinema.slug]?.today ?? 0}
+                  totalCount={screeningCounts[cinema.slug]?.total ?? 0}
+                />
+              ))
+            );
+          })()}
         </div>
       </div>
 
