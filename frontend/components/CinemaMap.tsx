@@ -91,21 +91,25 @@ export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
   const [cinemas, setCinemas] = useState<Cinema[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [screenings, setScreenings] = useState<Screening[]>([]);
+  const [allScreenings, setAllScreenings] = useState<Screening[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCinemaSlug, setSelectedCinemaSlug] = useState<string | null>(null);
   const [selectedFilmSlug, setSelectedFilmSlug] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Fetch cinemas on mount
+  // Fetch cinemas + all upcoming screenings on mount
   useEffect(() => {
-    fetchAPI('/cinemas')
-      .then(setCinemas)
+    Promise.all([
+      fetchAPI('/cinemas'),
+      fetchAPI('/screenings'),
+    ])
+      .then(([c, s]) => { setCinemas(c); setAllScreenings(s); })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
-  // Fetch screenings when filters change
+  // Fetch filtered screenings when filters change
   useEffect(() => {
     const params: Record<string, string> = {};
     if (filters.date) params.date = filters.date;
@@ -135,7 +139,7 @@ export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
     const todayStr = now.toISOString().slice(0, 10);
     const counts: Record<string, { today: number; total: number }> = {};
 
-    screenings.forEach(s => {
+    allScreenings.forEach(s => {
       if (new Date(s.showtime) < now) return;
       const key = s.cinema_slug;
       if (!counts[key]) counts[key] = { today: 0, total: 0 };
@@ -144,7 +148,7 @@ export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
     });
 
     return counts;
-  }, [screenings]);
+  }, [allScreenings]);
 
   // Sort: cinemas with screenings first, then by name
   const sortedCinemas = useMemo(() => {
