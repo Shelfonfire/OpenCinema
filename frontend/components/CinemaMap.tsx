@@ -42,23 +42,35 @@ function SidebarCinemaItem({
   cinema,
   isSelected,
   onClick,
+  todayCount,
+  totalCount,
 }: {
   cinema: Cinema;
   isSelected: boolean;
   onClick: () => void;
+  todayCount: number;
+  totalCount: number;
 }) {
   return (
     <button
       onClick={onClick}
       className={`w-full text-left p-3 transition-all border-b border-gray-100 hover:bg-amber-50/40
-        ${isSelected ? 'bg-amber-50 border-l-[3px] border-l-amber-500' : 'border-l-[3px] border-l-transparent'}`}
+        ${isSelected ? 'bg-amber-50 border-l-[3px] border-l-amber-500' : 'border-l-[3px] border-l-transparent'}
+        ${totalCount === 0 ? 'opacity-50' : ''}`}
     >
       <div className="flex items-start justify-between gap-2 mb-0.5">
         <h4 className="font-semibold text-sm text-gray-900 leading-tight">{cinema.name}</h4>
-        {cinema.screening_count > 0 && (
-          <span className="shrink-0 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
-            {cinema.screening_count}
-          </span>
+        {totalCount > 0 && (
+          <div className="flex gap-1 shrink-0">
+            {todayCount > 0 && (
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                {todayCount} today
+              </span>
+            )}
+            <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+              {totalCount} total
+            </span>
+          </div>
         )}
       </div>
       <div className="flex items-center gap-1.5">
@@ -117,10 +129,38 @@ export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
     );
   }, [cinemas, searchQuery]);
 
+  // Compute per-cinema screening counts (today + total, excluding past)
+  const screeningCounts = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const counts: Record<string, { today: number; total: number }> = {};
+
+    screenings.forEach(s => {
+      if (new Date(s.showtime) < now) return;
+      const key = s.cinema_slug;
+      if (!counts[key]) counts[key] = { today: 0, total: 0 };
+      counts[key].total++;
+      if (s.showtime.slice(0, 10) === todayStr) counts[key].today++;
+    });
+
+    return counts;
+  }, [screenings]);
+
+  // Sort: cinemas with screenings first, then by name
+  const sortedCinemas = useMemo(() => {
+    return [...filteredCinemas].sort((a, b) => {
+      const aTotal = screeningCounts[a.slug]?.total ?? 0;
+      const bTotal = screeningCounts[b.slug]?.total ?? 0;
+      if (aTotal > 0 && bTotal === 0) return -1;
+      if (aTotal === 0 && bTotal > 0) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [filteredCinemas, screeningCounts]);
+
   // Cinemas with valid coordinates
   const mappableCinemas = useMemo(
-    () => filteredCinemas.filter(c => c.latitude != null && c.longitude != null),
-    [filteredCinemas]
+    () => sortedCinemas.filter(c => c.latitude != null && c.longitude != null),
+    [sortedCinemas]
   );
 
   const handleSelectCinema = (cinema: Cinema) => {
@@ -173,17 +213,19 @@ export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
           </div>
         </div>
         <div ref={listRef} className="flex-1 overflow-y-auto">
-          {filteredCinemas.length === 0 ? (
+          {sortedCinemas.length === 0 ? (
             <div className="p-6 text-center">
               <p className="text-sm text-gray-400">No cinemas found</p>
             </div>
           ) : (
-            filteredCinemas.map((cinema) => (
+            sortedCinemas.map((cinema) => (
               <SidebarCinemaItem
                 key={cinema.id}
                 cinema={cinema}
                 isSelected={selectedCinemaSlug === cinema.slug}
                 onClick={() => handleSelectCinema(cinema)}
+                todayCount={screeningCounts[cinema.slug]?.today ?? 0}
+                totalCount={screeningCounts[cinema.slug]?.total ?? 0}
               />
             ))
           )}
@@ -225,7 +267,7 @@ export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
 
         {/* Cinema count badge - mobile */}
         <div className="absolute bottom-4 left-4 z-[1000] lg:hidden bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow text-xs text-gray-600 font-medium">
-          {filteredCinemas.length} cinema{filteredCinemas.length !== 1 ? 's' : ''}
+          {sortedCinemas.length} cinema{sortedCinemas.length !== 1 ? 's' : ''}
         </div>
       </div>
 
