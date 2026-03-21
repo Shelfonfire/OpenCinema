@@ -33,12 +33,36 @@ export default function CinemaCard({ slug }: CinemaCardProps) {
   if (error) return <div className="p-4 text-sm text-red-500">Error: {error}</div>;
   if (!cinema) return null;
 
-  // Group screenings by film title
+  // Group screenings by film title, then by date
   const byFilm: Record<string, Screening[]> = {};
   (cinema.screenings || []).forEach(s => {
     if (!byFilm[s.film_title]) byFilm[s.film_title] = [];
     byFilm[s.film_title].push(s);
   });
+
+  const formatDateLabel = (isoDate: string) => {
+    const d = new Date(isoDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const screenDate = new Date(d);
+    screenDate.setHours(0, 0, 0, 0);
+    if (screenDate.getTime() === today.getTime()) return 'Today';
+    const day = d.toLocaleDateString('en-GB', { weekday: 'long' });
+    const date = d.getDate();
+    const suffix = date === 1 || date === 21 || date === 31 ? 'st' : date === 2 || date === 22 ? 'nd' : date === 3 || date === 23 ? 'rd' : 'th';
+    return `${day} ${date}${suffix}`;
+  };
+
+  const groupByDate = (screenings: Screening[]) => {
+    const sorted = [...screenings].sort((a, b) => a.showtime.localeCompare(b.showtime));
+    const groups: Record<string, Screening[]> = {};
+    sorted.forEach(s => {
+      const dateKey = s.showtime.slice(0, 10);
+      if (!groups[dateKey]) groups[dateKey] = [];
+      groups[dateKey].push(s);
+    });
+    return groups;
+  };
 
   return (
     <div className="space-y-4">
@@ -69,16 +93,22 @@ export default function CinemaCard({ slug }: CinemaCardProps) {
       {Object.keys(byFilm).length > 0 ? (
         <div className="space-y-3">
           <h4 className="font-semibold text-sm text-gray-700 border-b border-gray-200 pb-1">Screenings</h4>
-          {Object.entries(byFilm).map(([title, screenings]) => (
-            <div key={title}>
-              <h5 className="font-medium text-sm text-gray-800 mb-1">{title}</h5>
-              <div className="pl-2 border-l-2 border-amber-200">
-                {screenings
-                  .sort((a, b) => a.showtime.localeCompare(b.showtime))
-                  .map(s => <ScreeningRow key={s.id} screening={s} />)}
+          {Object.entries(byFilm).map(([title, screenings]) => {
+            const dateGroups = groupByDate(screenings);
+            return (
+              <div key={title}>
+                <h5 className="font-medium text-sm text-gray-800 mb-1">{title}</h5>
+                <div className="pl-2 border-l-2 border-amber-200">
+                  {Object.entries(dateGroups).map(([dateKey, shows]) => (
+                    <div key={dateKey}>
+                      <p className="text-[11px] font-semibold text-gray-500 mt-1.5 mb-0.5">{formatDateLabel(dateKey)}</p>
+                      {shows.map(s => <ScreeningRow key={s.id} screening={s} />)}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <p className="text-xs text-gray-400">No screenings found</p>
