@@ -36,6 +36,7 @@ export interface Screening {
   longitude: number | null;
   tags: string[];
   poster_url: string | null;
+  is_sold_out: boolean | null;
 }
 
 export interface Filters {

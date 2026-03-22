@@ -18,6 +18,18 @@ export default function ScreeningRow({ screening }: ScreeningRowProps) {
     </span>
   );
 
+  if (screening.is_sold_out) {
+    return (
+      <div className="flex items-center gap-2 py-2 px-3 bg-red-50 rounded-lg my-1 border border-red-200 opacity-70">
+        <span className="text-sm font-semibold text-red-400 line-through">{time}</span>
+        {formatBadge}
+        <span className="ml-auto text-[11px] font-semibold text-red-400">
+          Sold Out
+        </span>
+      </div>
+    );
+  }
+
   if (screening.booking_url) {
     return (
       <a

@@ -41,6 +41,8 @@ class ScreeningOut(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     tags: list[str] = []
+    poster_url: Optional[str] = None
+    is_sold_out: Optional[bool] = None
 
 
 class TagCount(BaseModel):

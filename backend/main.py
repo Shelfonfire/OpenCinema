@@ -74,15 +74,22 @@ def get_cinema(slug: str):
     if not cinema:
         raise HTTPException(404, "Cinema not found")
     screenings = db.execute("""
-        SELECT s.*, f.title as film_title, f.slug as film_slug, f.poster_url
-        FROM screenings s JOIN films f ON f.id = s.film_id
+        SELECT s.*, f.title as film_title, f.slug as film_slug, f.poster_url,
+               sa.is_sold_out
+        FROM screenings s
+        JOIN films f ON f.id = s.film_id
+        LEFT JOIN screening_availability sa ON sa.screening_id = s.id
+            AND sa.collected_at = (
+                SELECT MAX(sa2.collected_at) FROM screening_availability sa2
+                WHERE sa2.screening_id = s.id
+            )
         WHERE s.cinema_id=? AND s.showtime >= datetime('now')
         ORDER BY s.showtime
     """, (cinema["id"],)).fetchall()
     db.close()
     return {
         **dict(cinema),
-        "screenings": [dict(s) for s in screenings],
+        "screenings": [{**dict(s), "is_sold_out": bool(s["is_sold_out"]) if s["is_sold_out"] is not None else None} for s in screenings],
     }
 
 
@@ -144,8 +151,15 @@ def get_film(slug: str):
     ).fetchall()]
     screenings = db.execute("""
         SELECT s.*, c.name as cinema_name, c.slug as cinema_slug,
-               c.latitude, c.longitude
-        FROM screenings s JOIN cinemas c ON c.id = s.cinema_id
+               c.latitude, c.longitude,
+               sa.is_sold_out
+        FROM screenings s
+        JOIN cinemas c ON c.id = s.cinema_id
+        LEFT JOIN screening_availability sa ON sa.screening_id = s.id
+            AND sa.collected_at = (
+                SELECT MAX(sa2.collected_at) FROM screening_availability sa2
+                WHERE sa2.screening_id = s.id
+            )
         WHERE s.film_id=? AND s.showtime >= datetime('now')
         ORDER BY s.showtime
     """, (film["id"],)).fetchall()
@@ -153,7 +167,7 @@ def get_film(slug: str):
     return {
         **dict(film),
         "tags": tags,
-        "screenings": [dict(s) for s in screenings],
+        "screenings": [{**dict(s), "is_sold_out": bool(s["is_sold_out"]) if s["is_sold_out"] is not None else None} for s in screenings],
     }
 
 
@@ -172,13 +186,21 @@ def list_screenings(
     query = """
         SELECT s.id, s.showtime, s.booking_url, s.format,
                f.title as film_title, f.slug as film_slug,
+               f.poster_url,
                c.name as cinema_name, c.slug as cinema_slug,
                c.latitude, c.longitude,
-               GROUP_CONCAT(DISTINCT ft.tag) as tag_list
+               GROUP_CONCAT(DISTINCT ft.tag) as tag_list,
+               sa.is_sold_out, sa.expected_availability,
+               sa.absolute_available, sa.collected_at as availability_updated
         FROM screenings s
         JOIN films f ON f.id = s.film_id
         JOIN cinemas c ON c.id = s.cinema_id
         LEFT JOIN film_tags ft ON ft.film_id = f.id
+        LEFT JOIN screening_availability sa ON sa.screening_id = s.id
+            AND sa.collected_at = (
+                SELECT MAX(sa2.collected_at) FROM screening_availability sa2
+                WHERE sa2.screening_id = s.id
+            )
         WHERE s.showtime >= datetime('now')
     """
     params: list = []
@@ -219,7 +241,11 @@ def list_screenings(
             cinema_name=r["cinema_name"], cinema_slug=r["cinema_slug"],
             showtime=r["showtime"], booking_url=r["booking_url"],
             format=r["format"], latitude=r["latitude"], longitude=r["longitude"],
-            tags=film_tags,
+            tags=film_tags, poster_url=r["poster_url"],
+            is_sold_out=bool(r["is_sold_out"]) if r["is_sold_out"] is not None else None,
+            expected_availability=r["expected_availability"],
+            absolute_available=r["absolute_available"],
+            availability_updated=r["availability_updated"],
         ))
     return results
 
