@@ -152,6 +152,22 @@ jobs:
       - name: Upload updated cinema.db
         run: aws s3 cp cinema.db s3://$S3_DATA/cinema.db
 
+      - name: Force Lambda cold start (pick up new DB)
+        run: |
+          CURRENT=$(aws lambda get-function-configuration \
+            --function-name opencinema-api \
+            --query 'Environment.Variables' --output json)
+          NEW_VERSION=$(echo "$CURRENT" | python3 -c "
+          import sys, json
+          env = json.load(sys.stdin)
+          v = int(env.get('DB_VERSION', '0')) + 1
+          env['DB_VERSION'] = str(v)
+          print(json.dumps({'Variables': env}))
+          ")
+          aws lambda update-function-configuration \
+            --function-name opencinema-api \
+            --environment "$NEW_VERSION"
+
       - name: Invalidate CloudFront poster cache
         run: |
           aws cloudfront create-invalidation \

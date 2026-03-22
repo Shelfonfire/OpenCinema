@@ -93,6 +93,7 @@ resource "aws_lambda_function" "api" {
     variables = {
       CINEMA_DB_PATH = "/tmp/cinema.db"
       DATA_BUCKET    = aws_s3_bucket.data.bucket
+      DB_VERSION     = "5"
     }
   }
 
@@ -181,6 +182,25 @@ resource "aws_lambda_permission" "eventbridge" {
   source_arn    = aws_cloudwatch_event_rule.daily_scrape.arn
 }
 
+# ---------- ACM Certificate (us-east-1 required for CloudFront) ----------
+
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
+
+resource "aws_acm_certificate" "cert" {
+  count             = var.domain != "" ? 1 : 0
+  provider          = aws.us_east_1
+  domain_name       = var.domain
+  subject_alternative_names = ["*.${var.domain}"]
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 # ---------- CloudFront ----------
 
 resource "aws_cloudfront_origin_access_control" "s3" {
@@ -194,6 +214,7 @@ resource "aws_cloudfront_distribution" "cdn" {
   enabled             = true
   default_root_object = "index.html"
   price_class         = "PriceClass_100"
+  aliases             = var.domain != "" ? [var.domain, "www.${var.domain}"] : []
 
   # S3 origin (frontend)
   origin {
@@ -245,7 +266,10 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    cloudfront_default_certificate = var.domain == "" ? true : false
+    acm_certificate_arn            = var.domain != "" ? aws_acm_certificate.cert[0].arn : null
+    ssl_support_method             = var.domain != "" ? "sni-only" : null
+    minimum_protocol_version       = var.domain != "" ? "TLSv1.2_2021" : null
   }
 
   custom_error_response {
