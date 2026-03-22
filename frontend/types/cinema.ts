@@ -35,11 +35,11 @@ export interface Screening {
   latitude: number | null;
   longitude: number | null;
   tags: string[];
+  poster_url: string | null;
 }
 
 export interface Filters {
-  date: string;
-  fromTime: string;
-  toTime: string;
+  fromDate: string;
+  toDate: string;
   tags: string[];
 }

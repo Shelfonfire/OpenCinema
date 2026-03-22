@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { Filters } from '@/types/cinema';
 
 interface FilterBarProps {
@@ -16,19 +17,36 @@ const TAG_OPTIONS = [
   { key: 'documentary', label: 'Documentary' },
 ];
 
-function timeOptions(): string[] {
-  const opts: string[] = [];
-  for (let h = 0; h < 24; h++) {
-    for (const m of ['00', '30']) {
-      opts.push(`${h.toString().padStart(2, '0')}:${m}`);
-    }
+function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+function formatDateLabel(d: Date): string {
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return `${days[d.getDay()]} (${ordinal(d.getDate())})`;
+}
+
+function toDateStr(d: Date): string {
+  return d.toISOString().split('T')[0];
+}
+
+/** Generate date options from today to 13 days out */
+function dateOptions(): { value: string; label: string }[] {
+  const opts: { value: string; label: string }[] = [];
+  const now = new Date();
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + i);
+    opts.push({ value: toDateStr(d), label: formatDateLabel(d) });
   }
   return opts;
 }
 
-const TIMES = timeOptions();
-
 export default function FilterBar({ filters, onFilterChange }: FilterBarProps) {
+  const dates = useMemo(() => dateOptions(), []);
+
   const toggleTag = (tag: string) => {
     const tags = filters.tags.includes(tag)
       ? filters.tags.filter(t => t !== tag)
@@ -38,32 +56,24 @@ export default function FilterBar({ filters, onFilterChange }: FilterBarProps) {
 
   return (
     <div className="bg-gray-100 border-b border-gray-200 px-5 py-2.5 flex items-center gap-3 overflow-x-auto z-40 relative">
-      {/* Date */}
-      <input
-        type="date"
-        value={filters.date}
-        onChange={(e) => onFilterChange({ ...filters, date: e.target.value })}
-        className="shrink-0 px-3 py-1.5 rounded-lg border border-gray-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/30"
-      />
-
-      {/* From time */}
+      {/* From date */}
       <select
-        value={filters.fromTime}
-        onChange={(e) => onFilterChange({ ...filters, fromTime: e.target.value })}
+        value={filters.fromDate}
+        onChange={(e) => onFilterChange({ ...filters, fromDate: e.target.value })}
         className="shrink-0 px-2 py-1.5 rounded-lg border border-gray-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/30"
       >
-        <option value="">From</option>
-        {TIMES.map(t => <option key={t} value={t}>{t}</option>)}
+        {dates.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
       </select>
 
-      {/* To time */}
+      <span className="text-xs text-gray-400 shrink-0">→</span>
+
+      {/* To date */}
       <select
-        value={filters.toTime}
-        onChange={(e) => onFilterChange({ ...filters, toTime: e.target.value })}
+        value={filters.toDate}
+        onChange={(e) => onFilterChange({ ...filters, toDate: e.target.value })}
         className="shrink-0 px-2 py-1.5 rounded-lg border border-gray-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/30"
       >
-        <option value="">To</option>
-        {TIMES.map(t => <option key={t} value={t}>{t}</option>)}
+        {dates.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
       </select>
 
       {/* Divider */}

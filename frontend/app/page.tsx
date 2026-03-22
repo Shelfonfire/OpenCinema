@@ -12,12 +12,17 @@ function todayStr() {
   return new Date().toISOString().split('T')[0];
 }
 
+function endOfWeekStr() {
+  const d = new Date();
+  d.setDate(d.getDate() + 6);
+  return d.toISOString().split('T')[0];
+}
+
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Filters>({
-    date: todayStr(),
-    fromTime: '',
-    toTime: '',
+    fromDate: todayStr(),
+    toDate: endOfWeekStr(),
     tags: [],
   });
 

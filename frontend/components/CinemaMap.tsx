@@ -95,6 +95,7 @@ interface FilmSummary {
   screeningCount: number;
   cinemaCount: number;
   cinemaSlugs: Set<string>;
+  poster_url: string | null;
 }
 
 function SidebarFilmItem({
@@ -109,28 +110,37 @@ function SidebarFilmItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left p-3 transition-all border-b border-gray-100 hover:bg-amber-50/40
+      className={`w-full text-left p-2.5 transition-all border-b border-gray-100 hover:bg-amber-50/40
         ${isSelected ? 'bg-amber-50 border-l-[3px] border-l-amber-500' : 'border-l-[3px] border-l-transparent'}`}
     >
-      <div className="flex items-start justify-between gap-2 mb-0.5">
-        <h4 className="font-semibold text-sm text-gray-900 leading-tight">{film.film_title}</h4>
-        <div className="flex gap-1 shrink-0">
-          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
-            {film.screeningCount} screening{film.screeningCount !== 1 ? 's' : ''}
-          </span>
+      <div className="flex gap-2.5">
+        {/* Text content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded shrink-0">
+              {film.screeningCount} screening{film.screeningCount !== 1 ? 's' : ''}
+            </span>
+            <span className="text-[10px] text-gray-400 shrink-0">
+              {film.cinemaCount} cinema{film.cinemaCount !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <h4 className="font-semibold text-sm text-gray-900 leading-tight truncate">{film.film_title}</h4>
+        </div>
+        {/* Poster */}
+        <div className="w-10 h-14 shrink-0 rounded overflow-hidden bg-gray-100">
+          {film.poster_url ? (
+            <img src={film.poster_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-300 text-lg">🎬</div>
+          )}
         </div>
       </div>
-      <span className="text-[11px] text-gray-500">
-        {film.cinemaCount} cinema{film.cinemaCount !== 1 ? 's' : ''}
-      </span>
     </button>
   );
 }
 
 export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
   const [cinemas, setCinemas] = useState<Cinema[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [screenings, setScreenings] = useState<Screening[]>([]);
   const [allScreenings, setAllScreenings] = useState<Screening[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -151,31 +161,26 @@ export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
       .finally(() => setLoading(false));
   }, []);
 
-  // Fetch filtered screenings when filters change
-  useEffect(() => {
-    const params: Record<string, string> = {};
-    if (filters.date) params.date = filters.date;
-    if (filters.fromTime) params.from_time = filters.fromTime;
-    if (filters.toTime) params.to_time = filters.toTime;
-    if (filters.tags.length > 0) params.tags = filters.tags.join(',');
-
-    fetchAPI('/screenings', params)
-      .then(setScreenings)
-      .catch(() => setScreenings([]));
-  }, [filters]);
-
-  // Build film summaries from future screenings this week, ordered by count
-  const filmSummaries = useMemo(() => {
+  // Filter allScreenings by date range from filters
+  const dateFilteredScreenings = useMemo(() => {
     const now = new Date();
-    const endOfWeek = new Date(now);
-    endOfWeek.setDate(endOfWeek.getDate() + (7 - endOfWeek.getDay()));
-    endOfWeek.setHours(23, 59, 59, 999);
+    const fromDate = filters.fromDate ? new Date(filters.fromDate + 'T00:00:00') : now;
+    const toDate = filters.toDate ? new Date(filters.toDate + 'T23:59:59') : null;
 
-    const filmMap: Record<string, FilmSummary> = {};
-    allScreenings.forEach(s => {
+    return allScreenings.filter(s => {
       const showtime = new Date(s.showtime);
-      if (showtime < now) return;
-      if (showtime > endOfWeek) return;
+      if (showtime < now) return false;
+      if (showtime < fromDate) return false;
+      if (toDate && showtime > toDate) return false;
+      if (filters.tags.length > 0 && !filters.tags.some(t => s.tags?.includes(t))) return false;
+      return true;
+    });
+  }, [allScreenings, filters]);
+
+  // Build film summaries from date-filtered screenings, ordered by count
+  const filmSummaries = useMemo(() => {
+    const filmMap: Record<string, FilmSummary> = {};
+    dateFilteredScreenings.forEach(s => {
       if (!filmMap[s.film_slug]) {
         filmMap[s.film_slug] = {
           film_title: s.film_title,
@@ -183,17 +188,17 @@ export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
           screeningCount: 0,
           cinemaCount: 0,
           cinemaSlugs: new Set(),
+          poster_url: s.poster_url ?? null,
         };
       }
       filmMap[s.film_slug].screeningCount++;
       filmMap[s.film_slug].cinemaSlugs.add(s.cinema_slug);
     });
 
-    // Set cinemaCount from set size
     Object.values(filmMap).forEach(f => { f.cinemaCount = f.cinemaSlugs.size; });
 
     return Object.values(filmMap).sort((a, b) => b.screeningCount - a.screeningCount);
-  }, [allScreenings]);
+  }, [dateFilteredScreenings]);
 
   // Get cinema slugs that have the filtered film
   const filmFilterCinemaSlugs = useMemo(() => {
@@ -219,14 +224,12 @@ export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
     return result;
   }, [cinemas, searchQuery, filmFilterCinemaSlugs]);
 
-  // Compute per-cinema screening counts (today + total, excluding past)
+  // Compute per-cinema screening counts from date-filtered screenings
   const screeningCounts = useMemo(() => {
-    const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayStr = new Date().toISOString().slice(0, 10);
     const counts: Record<string, { today: number; total: number }> = {};
 
-    allScreenings.forEach(s => {
-      if (new Date(s.showtime) < now) return;
+    dateFilteredScreenings.forEach(s => {
       const key = s.cinema_slug;
       if (!counts[key]) counts[key] = { today: 0, total: 0 };
       counts[key].total++;
@@ -234,7 +237,7 @@ export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
     });
 
     return counts;
-  }, [allScreenings]);
+  }, [dateFilteredScreenings]);
 
   // Sort: cinemas with screenings first, then by name
   const sortedCinemas = useMemo(() => {
