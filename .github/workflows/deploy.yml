@@ -84,3 +84,76 @@ jobs:
           aws lambda update-function-code \
             --function-name opencinema-scraper \
             --zip-file fileb://lambda.zip
+
+  cache-posters:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install httpx boto3
+
+      - name: Download cinema.db from S3
+        run: aws s3 cp s3://$S3_DATA/cinema.db cinema.db
+
+      - name: Cache posters to S3
+        working-directory: .
+        env:
+          S3_FRONTEND: ${{ env.S3_FRONTEND }}
+          CINEMA_DB_PATH: cinema.db
+        run: |
+          cd ${{ github.workspace }}
+          PYTHONPATH=. python -c "
+          import sys; sys.path.insert(0, '.')
+          import sqlite3, os, httpx, boto3
+
+          db = sqlite3.connect('cinema.db')
+          db.row_factory = sqlite3.Row
+          rows = db.execute('SELECT id, slug, poster_url FROM films WHERE poster_url IS NOT NULL').fetchall()
+          to_cache = [r for r in rows if r['poster_url'] and not r['poster_url'].startswith('/posters/')]
+          print(f'Caching {len(to_cache)} posters...')
+
+          s3 = boto3.client('s3')
+          bucket = os.environ['S3_FRONTEND']
+          cached = failed = 0
+
+          for row in to_cache:
+              slug, url = row['slug'], row['poster_url']
+              s3_key = f'posters/{slug}.jpg'
+              try:
+                  resp = httpx.get(url, timeout=15, follow_redirects=True)
+                  resp.raise_for_status()
+                  s3.put_object(Bucket=bucket, Key=s3_key, Body=resp.content,
+                                ContentType=resp.headers.get('content-type', 'image/jpeg'),
+                                CacheControl='public, max-age=604800')
+                  db.execute('UPDATE films SET poster_url=? WHERE id=?', (f'/{s3_key}', row['id']))
+                  cached += 1
+                  print(f'  {slug}: ok ({len(resp.content)} bytes)')
+              except Exception as e:
+                  failed += 1
+                  print(f'  {slug}: FAILED ({e})')
+
+          db.commit()
+          db.close()
+          print(f'Done: {cached} cached, {failed} failed')
+          "
+
+      - name: Upload updated cinema.db
+        run: aws s3 cp cinema.db s3://$S3_DATA/cinema.db
+
+      - name: Invalidate CloudFront poster cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id $CF_DIST_ID \
+            --paths "/posters/*"
