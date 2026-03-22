@@ -77,20 +77,34 @@ export default function CinemaCard({ slug }: CinemaCardProps) {
         {cinema.area && (
           <p className="text-xs text-gray-500 mt-0.5">{cinema.area}{cinema.postcode ? `, ${cinema.postcode}` : ''}</p>
         )}
-        {cinema.website && (
+        <div className="flex items-center gap-2 mt-1.5">
           <a
-            href={cinema.website}
+            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([cinema.name, cinema.area, cinema.postcode].filter(Boolean).join(', '))}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 mt-1"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 hover:text-amber-700 px-2 py-1 bg-amber-50 rounded hover:bg-amber-100 transition-colors"
           >
             <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round"/>
+              <circle cx="12" cy="10" r="3"/>
             </svg>
-            Website
+            Maps
           </a>
-        )}
+          {cinema.website && (
+            <a
+              href={cinema.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 hover:text-amber-700 px-2 py-1 bg-amber-50 rounded hover:bg-amber-100 transition-colors"
+            >
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Website
+            </a>
+          )}
+        </div>
       </div>
 
       {Object.keys(byFilm).length > 0 ? (

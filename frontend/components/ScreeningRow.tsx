@@ -12,24 +12,33 @@ export default function ScreeningRow({ screening }: ScreeningRowProps) {
     minute: '2-digit',
   });
 
-  return (
-    <div className="flex items-center gap-2 py-1.5">
-      <span className="text-sm font-medium text-gray-800">{time}</span>
-      {screening.format && screening.format !== 'standard' && (
-        <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
-          {screening.format.toUpperCase()}
+  const formatBadge = screening.format && screening.format !== 'standard' && (
+    <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
+      {screening.format.toUpperCase()}
+    </span>
+  );
+
+  if (screening.booking_url) {
+    return (
+      <a
+        href={screening.booking_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 py-2 px-3 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer my-1 border border-amber-200"
+      >
+        <span className="text-sm font-semibold text-amber-700">{time}</span>
+        {formatBadge}
+        <span className="ml-auto text-[11px] font-semibold text-amber-600">
+          Book →
         </span>
-      )}
-      {screening.booking_url && (
-        <a
-          href={screening.booking_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="ml-auto text-[11px] font-semibold text-amber-600 hover:text-amber-700 px-2 py-1 bg-amber-50 rounded hover:bg-amber-100 transition-colors"
-        >
-          Book
-        </a>
-      )}
+      </a>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 py-2 px-3 bg-gray-50 rounded-lg my-1">
+      <span className="text-sm font-medium text-gray-800">{time}</span>
+      {formatBadge}
     </div>
   );
 }
