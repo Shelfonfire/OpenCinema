@@ -41,7 +41,7 @@ jobs:
         run: npm ci && npm run build
 
       - name: Sync to S3
-        run: aws s3 sync frontend/out/ s3://$S3_FRONTEND/ --delete
+        run: aws s3 sync frontend/out/ s3://$S3_FRONTEND/ --delete --exclude "posters/*"
 
       - name: Invalidate CloudFront
         run: |
@@ -86,6 +86,7 @@ jobs:
             --zip-file fileb://lambda.zip
 
   cache-posters:
+    needs: deploy-frontend
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
     steps:
