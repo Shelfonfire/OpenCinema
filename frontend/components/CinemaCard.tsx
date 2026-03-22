@@ -7,13 +7,14 @@ import ScreeningRow from './ScreeningRow';
 
 interface CinemaCardProps {
   slug: string;
+  filmFilter?: string | null;
 }
 
 interface CinemaDetail extends Cinema {
   screenings?: Screening[];
 }
 
-export default function CinemaCard({ slug }: CinemaCardProps) {
+export default function CinemaCard({ slug, filmFilter }: CinemaCardProps) {
   const [cinema, setCinema] = useState<CinemaDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,9 +34,13 @@ export default function CinemaCard({ slug }: CinemaCardProps) {
   if (error) return <div className="p-4 text-sm text-red-500">Error: {error}</div>;
   if (!cinema) return null;
 
-  // Filter out past screenings, then group by film title
+  // Filter out past screenings + optional film filter, then group by film title
   const now = new Date();
-  const futureScreenings = (cinema.screenings || []).filter(s => new Date(s.showtime) >= now);
+  const futureScreenings = (cinema.screenings || []).filter(s => {
+    if (new Date(s.showtime) < now) return false;
+    if (filmFilter && s.film_slug !== filmFilter) return false;
+    return true;
+  });
 
   const byFilm: Record<string, Screening[]> = {};
   futureScreenings.forEach(s => {

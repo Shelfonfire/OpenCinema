@@ -255,7 +255,7 @@ export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
 
   const handleSelectCinema = (cinema: Cinema) => {
     setSelectedCinemaSlug(cinema.slug);
-    setSelectedFilmSlug(null);
+    // Keep film selection/filter — don't clear it
   };
 
   const handleSelectFilm = (film: FilmSummary) => {
@@ -266,12 +266,12 @@ export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
     } else {
       setFilmFilter(film.film_slug);
       setSelectedFilmSlug(film.film_slug);
-      setSelectedCinemaSlug(null);
     }
   };
 
   const clearFilmFilter = () => {
     setFilmFilter(null);
+    setSelectedFilmSlug(null);
   };
 
   const closePanel = () => {
@@ -435,27 +435,54 @@ export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
         </div>
       </div>
 
-      {/* Right panel - cinema or film detail */}
+      {/* Right panel - detail view with film/cinema cross-filtering */}
       {(selectedCinemaSlug || selectedFilmSlug) && (
         <div className="w-96 bg-white border-l border-gray-200 overflow-y-auto hidden md:block shadow-lg animate-slide-in">
-          <div className="sticky top-0 bg-white border-b border-gray-200 p-3 flex justify-between items-center z-10">
-            <h2 className="font-bold text-sm text-gray-900 truncate">
-              {selectedFilmSlug ? 'Film Details' : 'Cinema Details'}
-            </h2>
-            <button
-              onClick={closePanel}
-              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
+          <div className="sticky top-0 bg-white border-b border-gray-200 z-10">
+            <div className="p-3 flex justify-between items-center">
+              <h2 className="font-bold text-sm text-gray-900 truncate">
+                {selectedCinemaSlug && selectedFilmSlug
+                  ? 'Screenings'
+                  : selectedFilmSlug ? 'Film Details' : 'Cinema Details'}
+              </h2>
+              <button
+                onClick={closePanel}
+                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+            {/* Active filter chips */}
+            {(selectedCinemaSlug || selectedFilmSlug) && (
+              <div className="px-3 pb-2 flex flex-wrap gap-1.5">
+                {selectedFilmSlug && activeFilmTitle && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-amber-50 text-amber-800 px-2 py-1 rounded-full border border-amber-200">
+                    🎬 {activeFilmTitle}
+                    <button
+                      onClick={() => { setSelectedFilmSlug(null); setFilmFilter(null); }}
+                      className="ml-0.5 text-amber-500 hover:text-amber-700"
+                    >×</button>
+                  </span>
+                )}
+                {selectedCinemaSlug && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-gray-100 text-gray-700 px-2 py-1 rounded-full border border-gray-200">
+                    📍 {cinemas.find(c => c.slug === selectedCinemaSlug)?.name}
+                    <button
+                      onClick={() => setSelectedCinemaSlug(null)}
+                      className="ml-0.5 text-gray-400 hover:text-gray-600"
+                    >×</button>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <div className="p-4">
-            {selectedFilmSlug ? (
+            {selectedCinemaSlug ? (
+              <CinemaCard slug={selectedCinemaSlug} filmFilter={selectedFilmSlug} />
+            ) : selectedFilmSlug ? (
               <FilmCard slug={selectedFilmSlug} />
-            ) : selectedCinemaSlug ? (
-              <CinemaCard slug={selectedCinemaSlug} />
             ) : null}
           </div>
         </div>
