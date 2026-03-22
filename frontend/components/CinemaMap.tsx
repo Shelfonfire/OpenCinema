@@ -127,9 +127,15 @@ function SidebarFilmItem({
           <h4 className="font-semibold text-sm text-gray-900 leading-tight truncate">{film.film_title}</h4>
         </div>
         {/* Poster */}
-        <div className="w-10 h-14 shrink-0 rounded overflow-hidden bg-gray-100">
+        <div className="w-11 h-16 shrink-0 rounded overflow-hidden bg-gray-100">
           {film.poster_url ? (
-            <img src={film.poster_url} alt="" className="w-full h-full object-cover" />
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={film.poster_url}
+              alt=""
+              className="w-full h-full object-cover"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; e.currentTarget.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-300 text-lg">🎬</div>'; }}
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-300 text-lg">🎬</div>
           )}
@@ -193,6 +199,9 @@ export default function CinemaMap({ searchQuery, filters }: CinemaMapProps) {
       }
       filmMap[s.film_slug].screeningCount++;
       filmMap[s.film_slug].cinemaSlugs.add(s.cinema_slug);
+      if (!filmMap[s.film_slug].poster_url && s.poster_url) {
+        filmMap[s.film_slug].poster_url = s.poster_url;
+      }
     });
 
     Object.values(filmMap).forEach(f => { f.cinemaCount = f.cinemaSlugs.size; });
